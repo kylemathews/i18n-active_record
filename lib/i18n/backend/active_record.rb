@@ -1,5 +1,4 @@
 require 'i18n/backend/base'
-require 'i18n/backend/active_record/translation'
 
 module I18n
   module Backend
@@ -30,20 +29,28 @@ module I18n
       protected
 
         def lookup(locale, key, scope = [], options = {})
-          key = normalize_flat_keys(locale, key, scope, options[:separator])
-          result = Translation.locale(locale).lookup(key).all
-
-          if result.empty?
+          if !Translation.table_exists?
             nil
-          elsif result.first.key == key
-            result.first.value
           else
-            chop_range = (key.size + FLATTEN_SEPARATOR.size)..-1
-            result = result.inject({}) do |hash, r|
-              hash[r.key.slice(chop_range)] = r.value
-              hash
+            key = normalize_flat_keys(locale, key, scope, options[:separator])
+            result = Translation.locale(locale).lookup(key).all
+
+            if result.empty?
+              nil
+            elsif result.first.key == key
+              if result.first.value.respond_to?(:deep_symbolize_keys)
+                result.first.value.deep_symbolize_keys
+              else
+                result.first.value
+              end
+            else
+              chop_range = (key.size + FLATTEN_SEPARATOR.size)..-1
+              result = result.inject({}) do |hash, r|
+                hash[r.key.slice(chop_range)] = r.value
+                hash
+              end
+              result.deep_symbolize_keys
             end
-            result.deep_symbolize_keys
           end
         end
 
